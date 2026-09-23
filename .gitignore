@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Additional Python
+*.pyc
+__pycache__/
+
+# Streamlit
+.streamlit/
+
+# Database files
+database/*.db
+
+# Generated reports
+reports/*.pdf
+
+# OS
+.DS_Store
+Thumbs.db
