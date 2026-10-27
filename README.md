@@ -1,157 +1,211 @@
-# InsightForge: An Agentic AI-Based Retail Business Intelligence and Decision Support System
+# InsightForge: Autonomous Multi-Agent Retail BI & Decision Support System
 
-InsightForge is an academic-grade, production-ready Retail Business Intelligence (BI) and Decision Support System designed with a multi-agent AI architecture. The system processes raw retail sales and inventory datasets, cleans and validates records, conducts exploratory analytics, trains predictive time-series (Prophet) and machine learning (XGBoost) forecasting models, calculates replenishment and liquidation recommendations, and presents the entire workflow through an interactive Streamlit web dashboard and automated executive PDF reports.
+[![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
+[![Framework-Streamlit](https://img.shields.io/badge/UI-Streamlit-FF4B4B.svg)](https://streamlit.io/)
+[![Database-SQLite](https://img.shields.io/badge/Database-SQLite-003B57.svg)](https://www.sqlite.org/)
+[![Models-Prophet_%26_XGBoost](https://img.shields.io/badge/Models-Prophet%20%7C%20XGBoost-orange.svg)]()
+[![Currency-INR_%E2%82%B9](https://img.shields.io/badge/Currency-INR%20(%E2%82%B9)-green.svg)]()
+[![License-MIT](https://img.shields.io/badge/License-MIT-green.svg)]()
 
----
-
-## ?? Key Capabilities & Features
-
-- **Multi-Agent AI Architecture:** Five specialized, autonomous agents coordinating in an automated pipeline.
-- **Smart Data Ingestion:** Auto-detects column semantics across diverse retail dataset schemas (CSV / Excel).
-- **Automated Data Cleansing & Quality Scoring:** Handles duplicates, missing values, non-positive records, and computes a comprehensive Data Quality Score (0?100%).
-- **Deep Retail Analytics:** Real-time business KPIs (Revenue, Volume, AOV, Unique SKUs), daily/monthly trends, category performance, and Pareto (80/20) revenue distribution.
-- **Dual Machine Learning Forecasting:**
-  - **Facebook Prophet:** Additive time-series model capturing weekly and annual seasonality with confidence interval bounds.
-  - **XGBoost Regressor:** Gradient-boosted trees trained with lag features (1, 2, 3, 7, 14, 21, 28) and rolling statistical windows.
-  - **Authentic Evaluation Metrics:** Calculates **MAE**, **RMSE**, **MAPE**, and **R?** using hold-out backtesting. Zero fabricated metrics.
-- **Actionable Inventory Decision Support:**
-  - Emergency stockout alerts (< 7 days of supply) with exact target reorder quantities.
-  - Fast-mover merchandising recommendations.
-  - Overstock and dead stock markdown/clearance strategies (> 90 days of supply).
-- **SQLite Database Integration:** Full relational persistence for raw ingestion, cleaned transactions, cached KPIs, forecast series, decision logs, and agent audit trails.
-- **Executive PDF Report Generator:** Publication-ready, styled PDF export via ReportLab containing KPI tables, category performance, ML forecast evaluations, and prioritized recommendation action items.
-- **100% Free & Open-Source:** Operates completely offline with zero paid API requirements.
+> **InsightForge** transforms raw retail sales datasets into autonomous business intelligence, predictive demand forecasts, and prescriptive inventory decisions — calibrated specifically for the **Indian retail market** with all metrics and prices in **Indian Rupees (\u20b9)**.
 
 ---
 
-## ??? Project Structure
+## 1. What is InsightForge? (In Simple Words)
 
-```
-InsightForge/
-?
-??? app.py                      # Main Streamlit application entry point
-??? requirements.txt            # Complete dependency requirements
-??? test_pipeline.py            # Automated end-to-end verification test suite
-??? README.md                   # System documentation & usage guide
-?
-??? database/
-?   ??? __init__.py
-?   ??? db_manager.py           # SQLite connection manager and CRUD operations
-?   ??? retail.db               # SQLite database file (created automatically)
-?
-??? agents/
-?   ??? __init__.py
-?   ??? base_agent.py           # Base agent class and AgentResult dataclass
-?   ??? ingestion.py            # Agent 1: Data Ingestion Agent
-?   ??? cleaning.py             # Agent 2: Data Cleaning Agent
-?   ??? analytics.py            # Agent 3: Analytics Agent
-?   ??? forecasting.py          # Agent 4: Demand Forecasting Agent
-?   ??? recommendation.py       # Agent 5: Recommendation Agent
-?
-??? models/
-?   ??? __init__.py
-?   ??? prophet_model.py        # Prophet time-series forecasting wrapper
-?   ??? xgboost_model.py        # XGBoost feature-engineered forecasting wrapper
-?
-??? dashboard/
-?   ??? __init__.py
-?   ??? dashboard.py            # Modular Streamlit UI layouts and page routing
-?   ??? charts.py               # Interactive Plotly chart generation suite
-?
-??? utils/
-?   ??? __init__.py
-?   ??? preprocess.py           # Column detection, date parsing, quality score
-?   ??? pdf_report.py           # ReportLab executive PDF generation engine
-?
-??? datasets/
-?   ??? sample_retail_sales.csv # Realistic benchmark dataset (17,400+ transactions)
-??? uploads/                    # Uploaded user datasets
-??? reports/                    # Generated executive PDF reports
-??? assets/                     # UI visual assets
-```
+Running a retail business is tough:
+- **Stockouts** happen when popular items run out of stock, causing lost sales and disappointed customers.
+- **Overstock** happens when slow items sit in warehouses for months, tying up money that could be invested elsewhere.
+- **Traditional dashboards** only tell you *what already happened yesterday* — they do **not** tell you *what will happen tomorrow* or *what actions to take today*.
+
+**InsightForge solves this.** Think of it as having a **team of 5 AI retail analysts working 24/7 for your business**:
+1. You upload any standard retail sales CSV or Excel spreadsheet.
+2. The AI agents automatically inspect, clean, and analyze your sales history.
+3. Machine learning models predict future consumer demand over the next 7 to 90 days.
+4. The system calculates exact purchase orders to replenish low stock and promotional markdowns to clear dead stock.
+5. You can explore everything through a visual web dashboard or download a publication-ready PDF report for executive meetings.
 
 ---
 
-## ?? Multi-Agent AI Workflow
+## 2. Meet the 5 Autonomous AI Agents
 
-```
-Retail Dataset (CSV / Excel)
-            ?
-1. Data Ingestion Agent    -> Validates schema, detects columns, stores raw records in SQLite
-            ?
-2. Data Cleaning Agent     -> Deduplicates, standardizes dates, imputes missing fields, computes Quality Score
-            ?
-3. Analytics Agent         -> Computes KPIs, sales trends, category shares, Pareto 80/20 curve
-            ?
-4. Forecasting Agent       -> Trains Prophet/XGBoost, computes MAE/RMSE/MAPE, projects future demand
-            ?
-5. Recommendation Agent    -> Evaluates stock vs. demand, generates reorder orders & clearance actions
-            ?
-Interactive Dashboard & Executive PDF Report
-```
+InsightForge is powered by an autonomous multi-agent pipeline where each specialized agent performs a dedicated role:
+
+`
+                      +-----------------------------+
+                      |   Retail CSV / Excel File   |
+                      +--------------+--------------+
+                                     |
+                                     v
+                      +-----------------------------+
+                      |   1. Ingestion Agent        |  <-- Schema detection & raw SQLite storage
+                      +--------------+--------------+
+                                     |
+                                     v
+                      +-----------------------------+
+                      |   2. Cleaning Agent         |  <-- Deduplication, date parsing & quality score
+                      +--------------+--------------+
+                                     |
+                                     v
+                      +-----------------------------+
+                      |   3. Analytics Agent        |  <-- Core KPIs, Pareto 80/20, trends in INR (\u20b9)
+                      +--------------+--------------+
+                                     |
+                                     v
+                      +-----------------------------+
+                      |   4. Forecasting Agent      |  <-- Prophet & XGBoost ML demand projections
+                      +--------------+--------------+
+                                     |
+                                     v
+                      +-----------------------------+
+                      |   5. Recommendation Agent   |  <-- Stockout purchase orders & liquidation
+                      +--------------+--------------+
+                                     |
+                 +-------------------+-------------------+
+                 |                                       |
+                 v                                       v
+      +---------------------+                 +---------------------+
+      | Streamlit Dashboard |                 | Executive PDF Brief |
+      |  (7 Modular Views)  |                 |  (ReportLab Export) |
+      +---------------------+                 +---------------------+
+`
+
+| Agent | Name | Real-World Role | What It Does |
+| :---: | :--- | :--- | :--- |
+| **01** | **Data Ingestion Agent** | *The Data Receiver* | Automatically detects column headers across messy CSV formats (dates, products, sales, quantities) and securely archives the raw data in SQLite. |
+| **02** | **Data Cleaning Agent** | *The Quality Inspector* | Strips currency symbols (\u20b9, $, commas), handles negative returns, standardizes timestamps, fixes missing values, and scores data health (0% to 100%). |
+| **03** | **Analytics Agent** | *The Business Analyst* | Computes total revenue, orders, units, average order value (AOV), top/bottom products, and identifies which 20% of products generate 80% of revenue (Pareto Principle). |
+| **04** | **Forecasting Agent** | *The Future Predictor* | Uses **Facebook Prophet** and **XGBoost** to forecast daily revenue for the next 7 to 90 days with authentic backtesting metrics (MAE, RMSE, MAPE, R\u00b2). |
+| **05** | **Recommendation Agent** | *The Smart Decision Advisor* | Compares current inventory velocity against supplier lead times to generate prioritized action items: emergency replenishment POs, safety stock buffers, and clearance markdowns. |
 
 ---
 
-## ?? Installation and Setup
+## 3. Key Features
 
-### 1. Prerequisites
-- Python 3.10, 3.11, 3.12, or 3.13
-- Git (optional)
+- **100% Indian Retail Context (\u20b9)**: All metric cards, charts, hover tooltips, data tables, and PDF reports display amounts in Indian Rupees (\u20b9). Zero foreign dollar signs.
+- **Universal CSV / Excel Support**: Upload any retail transaction sheet. InsightForge intelligently identifies semantic concepts like *InvoiceDate*, *Selling Price*, *MRP*, *Item Name*, and *Stock*.
+- **Dual Forecasting Algorithms**:
+  - **Facebook Prophet**: Robust against seasonal swings, holiday spikes, and weekly cycles.
+  - **XGBoost Regressor**: High-performance gradient-boosted trees with dynamic rolling lag windows.
+- **Authentic ML Backtesting**: Measures accuracy using real hold-out test sets. Calculates genuine Mean Absolute Error (MAE) and Mean Absolute Percentage Error (MAPE). Zero fabricated metrics.
+- **Prescriptive Decision Matrix**:
+  - **Critical Stockout Alerts**: Highlights products with less than 7 days of supply remaining with estimated lost revenue protected.
+  - **Overstock Liquidation**: Flags slow-moving items (> 90 days cover) with suggested clearance markdowns (20% to 30%) to free tied-up capital.
+- **One-Click Executive PDF Export**: Built-in ReportLab engine with registered TrueType Unicode fonts that compiles KPIs, category tables, ML accuracy cards, and decision recommendations into an executive briefing document.
+- **100% Free, Private & Offline**: Powered by local SQLite. No monthly cloud fees, no API keys, and your sales data never leaves your machine.
 
-### 2. Install Dependencies
-Navigate to the project directory and install the required packages:
+---
 
-```bash
+## 4. Quick Start in 3 Minutes
+
+### Step 1: Clone the Repository
+`ash
+git clone https://github.com/randy792005-arch/InsightForge.git
 cd InsightForge
+`
+
+### Step 2: Install Dependencies
+Ensure you have Python 3.10 or newer installed:
+`ash
 pip install -r requirements.txt
-```
+`
 
-### 3. Run Automated Integration Tests
-To verify all agents, models, database operations, and PDF generation:
-
-```bash
+### Step 3: Run the Verification Suite (Optional but Recommended)
+Verify that all 5 agents, the SQLite database, ML models, and PDF engine are working:
+`ash
 python test_pipeline.py
-```
+`
+*Expected output: STATUS: ALL TESTS PASSED (100% OPERATIONAL)*
 
-### 4. Launch the Web Application
-Start the Streamlit dashboard:
-
-```bash
+### Step 4: Launch the Web Dashboard
+`ash
 streamlit run app.py
-```
-
-The application will open automatically in your default web browser at `http://localhost:8501`.
-
----
-
-## ?? Dashboard Navigation Guide
-
-1. **?? Executive BI Dashboard:** High-level executive KPI cards, 5-agent visual stepper, sales revenue trends with 7-day moving averages, category donut chart, and critical stockout alerts.
-2. **?? Data Ingestion:** Upload custom CSV/Excel retail files or load the built-in 17,400-record benchmark dataset with 1 click.
-3. **?? Data Cleaning:** Review the Data Quality Score (0?100%), completeness/uniqueness breakdown, and inspect cleaned records.
-4. **?? Sales Analytics:** Interactive Plotly charts for daily/monthly sales, day-of-week distributions, top 10 best sellers, bottom 10 slow movers, and Pareto (80/20) analysis.
-5. **?? Demand Forecasting:** Select between Prophet and XGBoost, adjust forecast horizon (7?90 days), and review authentic out-of-sample backtest validation metrics (MAE, RMSE, MAPE, R?).
-6. **?? Inventory & Recommendations:** Interactive Inventory Health Matrix (Stock vs. Sales Velocity) and prioritized decision support table with reorder quantities and financial impact estimates.
-7. **?? Executive PDF Report:** One-click generation and instant download of publication-ready PDF intelligence briefs.
+`
+Open **[http://localhost:8501](http://localhost:8501)** in your web browser.
 
 ---
 
-## ?? Testing with Custom Datasets
+## 5. Dashboard Page Guide
 
-InsightForge automatically recognizes common column naming variations:
+InsightForge features 7 dedicated pages accessible from the sidebar:
 
-| Concept | Supported Column Names / Aliases |
+1. **Executive BI Dashboard**: High-level store summary with 5 executive KPI cards (Total Revenue in \u20b9, Units Sold, Orders, AOV, Active SKUs), 5-agent visual stepper, 7-day moving average revenue trend, category share donut, and quick file upload.
+2. **Data Ingestion (Agent 1)**: Upload any custom CSV or Excel file or load the built-in 17,400+ transaction benchmark dataset with 1 click.
+3. **Data Cleaning (Agent 2)**: View the Data Quality Score (0% to 100%), inspection logs, missing value resolution, and preview the normalized dataset.
+4. **Sales Analytics (Agent 3)**: Interactive Plotly visualizations for Daily Revenue, Monthly Trends, Day-of-Week patterns, Top 10 Best Sellers, Bottom 10 Slow Movers, and Pareto (80/20) revenue concentration.
+5. **Demand Forecasting (Agent 4)**: Choose between Facebook Prophet and XGBoost, adjust forecast horizon (7 to 90 days), view confidence interval ribbons, and inspect genuine hold-out validation metrics (MAE & RMSE in \u20b9).
+6. **Inventory & Recommendations (Agent 5)**: Interactive Stock vs. Velocity matrix and actionable decision table with emergency replenishment quantities and clearance actions.
+7. **Executive PDF Report**: Generate and instantly download a styled PDF brief summarizing all business KPIs, category tables, forecasting accuracy, and action items.
+
+---
+
+## 6. Supported CSV Format & Smart Detection
+
+InsightForge automatically detects and maps column headers even if they use different names:
+
+| Standard Concept | Automatically Recognized Column Names |
 | :--- | :--- |
-| **Date** | `Date`, `Order_Date`, `InvoiceDate`, `Transaction_Date`, `Sale_Date`, `Day` |
-| **Product** | `Product`, `Product_Name`, `Item`, `Item_Name`, `Description`, `Product_Title` |
-| **Category** | `Category`, `Product_Category`, `Department`, `Dept`, `Segment`, `Group` |
-| **Quantity** | `Quantity`, `Qty`, `Units`, `Units_Sold`, `Volume`, `Count` |
-| **Price** | `Unit_Price`, `Price`, `Selling_Price`, `Rate`, `Retail_Price` |
-| **Sales** | `Total_Sales`, `Sales`, `Revenue`, `Total_Amount`, `Amount`, `Net_Sales` |
-| **Stock** | `Current_Stock`, `Stock`, `Inventory`, `Stock_Level`, `Quantity_On_Hand` |
+| **Date** | Date, Order_Date, InvoiceDate, Transaction_Date, Sale_Date, Day, Timestamp |
+| **Product Name** | Product, Product_Name, Item, Item_Name, Description, Product_Title, SKU_Name |
+| **Category** | Category, Product_Category, Department, Dept, Segment, Group, Product_Type |
+| **Quantity** | Quantity, Qty, Units, Units_Sold, Volume, Count, Pieces, Sales_Volume |
+| **Unit Price** | Unit_Price, Price, Selling_Price, Rate, MRP, Cost_Per_Unit, Product_Price |
+| **Total Sales** | Total_Sales, Sales, Revenue, Total_Amount, Amount, Net_Sales, Order_Value |
+| **Current Stock** | Current_Stock, Stock, Inventory, Stock_Level, Quantity_On_Hand, Available_Stock |
+
+> **Tip:** If your CSV has missing columns (such as missing total sales or missing category), the Cleaning Agent automatically calculates Total Sales = Quantity * Price and infers categories using product keyword intelligence.
 
 ---
 
-## ?? Academic Integrity Note
+## 7. Project File Layout
 
-All predictive metrics (MAE, RMSE, MAPE, R?), time-series forecasts, and replenishment recommendations are computed deterministically from the underlying dataset. No results are hard-coded or fabricated.
+`
+InsightForge/
+|-- app.py                     # Main Streamlit web application entrypoint
+|-- requirements.txt           # Python dependency requirements
+|-- test_pipeline.py           # Automated end-to-end integration test suite
+|-- README.md                  # System documentation & usage guide
+|
+|-- agents/                    # Multi-Agent AI System
+|   |-- base_agent.py          # Abstract base class & AgentResult dataclass
+|   |-- ingestion.py           # Agent 1: Schema mapping & raw persistence
+|   |-- cleaning.py            # Agent 2: Sanitization & data quality scoring
+|   |-- analytics.py           # Agent 3: Business KPIs & Pareto analysis
+|   |-- forecasting.py         # Agent 4: Prophet & XGBoost demand models
+|   |-- recommendation.py      # Agent 5: Replenishment & liquidation decisions
+|
+|-- models/                    # Machine Learning Forecasting
+|   |-- prophet_model.py       # Facebook Prophet time-series wrapper
+|   |-- xgboost_model.py       # XGBoost gradient-boosted regression wrapper
+|
+|-- dashboard/                 # Streamlit User Interface
+|   |-- dashboard.py           # Page layouts, sidebar routing & session management
+|   |-- charts.py              # Interactive Plotly chart builders with INR (\u20b9) formatting
+|   |-- styles.py              # SaaS CSS design system & SVG vector icons
+|
+|-- utils/                     # Utilities & Reporting
+|   |-- preprocess.py          # Semantic column detection & numeric sanitization
+|   |-- pdf_report.py          # ReportLab executive PDF generator with Unicode fonts
+|
+|-- database/                  # SQLite Relational Persistence
+|   |-- db_manager.py          # Schema setup, connection management & CRUD queries
+|   |-- retail.db              # Local SQLite database (created automatically)
+|
+|-- datasets/                  # Benchmark Datasets
+|   |-- sample_retail_sales.csv# 17,400+ transaction multi-year retail dataset
+|-- reports/                   # Output directory for generated PDF reports
+`
+
+---
+
+## 8. Academic Integrity & Transparency Guarantee
+
+- **Zero Mock Metrics**: All model evaluation statistics (MAE, RMSE, MAPE, R\u00b2) are computed deterministically from out-of-sample hold-out validation.
+- **Deterministic Logic**: Inventory recommendations are calculated directly from empirical daily sales velocity and supplier lead-time parameters.
+- **Data Privacy**: All data processing and machine learning training happens entirely locally on your machine with zero external cloud dependencies.
+
+---
+
+## 9. License
+
+This project is licensed under the **MIT License** — free to use, modify, and distribute for educational, commercial, and personal projects.
