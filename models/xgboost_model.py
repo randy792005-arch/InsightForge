@@ -17,7 +17,7 @@ warnings.filterwarnings("ignore")
 class XGBoostForecaster:
     """
     Feature-engineered gradient boosting forecaster for demand and sales.
-    Includes lag creation, calendar features, recursive multi-step forecasting, and authentic backtesting.
+    Includes adaptive lag creation, calendar features, recursive multi-step forecasting, and authentic backtesting.
     """
 
     def __init__(self, forecast_horizon: int = 30):
@@ -26,27 +26,43 @@ class XGBoostForecaster:
         self.feature_names = []
         self.feature_importances = {}
         self.metrics = {}
+        self.freq = "D"
 
     def prepare_series(self, df: pd.DataFrame, date_col: str = "date", target_col: str = "total_sales") -> pd.DataFrame:
-        """Aggregates clean retail dataframe to continuous daily sales."""
+        """Aggregates clean retail dataframe to series with automatic frequency detection."""
         df_copy = df.copy()
         df_copy[date_col] = pd.to_datetime(df_copy[date_col])
+
+        # Detect frequency
+        sorted_dates = pd.Series(df_copy[date_col].dt.normalize().unique()).sort_values()
+        diffs = sorted_dates.diff().dt.days.dropna()
+        median_gap = float(diffs.median()) if not diffs.empty else 1.0
+
+        if median_gap >= 25:
+            self.freq = "MS"
+        elif 6 <= median_gap <= 8:
+            self.freq = "W"
+        else:
+            self.freq = "D"
+
         daily_df = (
-            df_copy.groupby(pd.Grouper(key=date_col, freq="D"))[target_col]
+            df_copy.groupby(pd.Grouper(key=date_col, freq=self.freq))[target_col]
             .sum()
             .reset_index()
         )
         daily_df.columns = ["date", "sales"]
         daily_df["date"] = pd.to_datetime(daily_df["date"])
         daily_df = daily_df.sort_values("date").reset_index(drop=True)
-        # Ensure daily continuity
-        all_dates = pd.date_range(start=daily_df["date"].min(), end=daily_df["date"].max(), freq="D")
-        daily_df = daily_df.set_index("date").reindex(all_dates, fill_value=0.0).rename_axis("date").reset_index()
+
+        if self.freq == "D" and len(daily_df) > 1:
+            all_dates = pd.date_range(start=daily_df["date"].min(), end=daily_df["date"].max(), freq="D")
+            daily_df = daily_df.set_index("date").reindex(all_dates, fill_value=0.0).rename_axis("date").reset_index()
+
         return daily_df
 
     def create_features(self, df: pd.DataFrame) -> pd.DataFrame:
         """
-        Generates rich temporal, lag, and rolling window features for XGBoost.
+        Generates adaptive temporal, lag, and rolling window features for XGBoost.
         """
         df_feat = df.copy()
         df_feat["date"] = pd.to_datetime(df_feat["date"])
@@ -58,18 +74,24 @@ class XGBoostForecaster:
         df_feat["quarter"] = df_feat["date"].dt.quarter
         df_feat["dayofyear"] = df_feat["date"].dt.dayofyear
         df_feat["is_weekend"] = df_feat["dayofweek"].isin([5, 6]).astype(int)
-        df_feat["weekofyear"] = df_feat["date"].dt.isocalendar().week.astype(int)
 
-        # Lag features
-        lags = [1, 2, 3, 7, 14, 21, 28]
+        n_rows = len(df_feat)
+        if n_rows < 15:
+            lags = [1, 2]
+            df_feat["rolling_mean_3"] = df_feat["sales"].shift(1).rolling(window=2, min_periods=1).mean()
+        elif n_rows < 40:
+            lags = [1, 2, 3, 7]
+            df_feat["rolling_mean_7"] = df_feat["sales"].shift(1).rolling(window=3, min_periods=1).mean()
+            df_feat["rolling_std_7"] = df_feat["sales"].shift(1).rolling(window=3, min_periods=1).std().fillna(0)
+        else:
+            lags = [1, 2, 3, 7, 14, 21, 28]
+            df_feat["rolling_mean_7"] = df_feat["sales"].shift(1).rolling(window=7, min_periods=1).mean()
+            df_feat["rolling_std_7"] = df_feat["sales"].shift(1).rolling(window=7, min_periods=1).std().fillna(0)
+            df_feat["rolling_mean_14"] = df_feat["sales"].shift(1).rolling(window=14, min_periods=1).mean()
+            df_feat["rolling_mean_30"] = df_feat["sales"].shift(1).rolling(window=30, min_periods=1).mean()
+
         for lag in lags:
             df_feat[f"lag_{lag}"] = df_feat["sales"].shift(lag)
-
-        # Rolling window features (shifted to prevent lookahead leakage)
-        df_feat["rolling_mean_7"] = df_feat["sales"].shift(1).rolling(window=7, min_periods=1).mean()
-        df_feat["rolling_std_7"] = df_feat["sales"].shift(1).rolling(window=7, min_periods=1).std().fillna(0)
-        df_feat["rolling_mean_14"] = df_feat["sales"].shift(1).rolling(window=14, min_periods=1).mean()
-        df_feat["rolling_mean_30"] = df_feat["sales"].shift(1).rolling(window=30, min_periods=1).mean()
 
         return df_feat
 
@@ -86,27 +108,27 @@ class XGBoostForecaster:
         daily_df = self.prepare_series(df)
         total_points = len(daily_df)
 
-        if total_points < 14:
+        if total_points < 7:
             raise ValueError(
-                f"Insufficient historical data for forecasting: dataset contains only {total_points} days. "
-                "A minimum of 14 continuous days is required to train reliable time-series models."
+                f"Insufficient historical data for forecasting: dataset contains only {total_points} data points. "
+                "A minimum of 7 data points is required to train reliable trend models."
             )
 
         # Feature dataframe
         feat_df = self.create_features(daily_df)
-        # Drop rows with NaN from earliest lags (first 28 days or min available)
         valid_feat_df = feat_df.dropna().reset_index(drop=True)
 
-        if len(valid_feat_df) < 7:
-            # Fallback for short series: drop only lag_1 and calendar NaNs
-            valid_feat_df = feat_df.dropna(subset=["lag_1", "rolling_mean_7"]).reset_index(drop=True)
-            valid_feat_df = valid_feat_df.fillna(0.0)
+        if len(valid_feat_df) < 5:
+            valid_feat_df = feat_df.fillna(0.0).reset_index(drop=True)
 
         feature_cols = [c for c in valid_feat_df.columns if c not in ["date", "sales"]]
         self.feature_names = feature_cols
 
         # 1. Backtesting Split
-        test_size = max(7, min(30, int(len(valid_feat_df) * test_ratio)))
+        test_size = max(2, min(30, int(len(valid_feat_df) * test_ratio)))
+        if test_size >= len(valid_feat_df):
+            test_size = max(1, len(valid_feat_df) - 2)
+
         train_df = valid_feat_df.iloc[:-test_size].copy()
         test_df = valid_feat_df.iloc[-test_size:].copy()
 
@@ -117,9 +139,9 @@ class XGBoostForecaster:
 
         # Train evaluation model
         eval_reg = xgb.XGBRegressor(
-            n_estimators=150,
-            max_depth=4,
-            learning_rate=0.04,
+            n_estimators=100,
+            max_depth=3,
+            learning_rate=0.05,
             subsample=0.85,
             colsample_bytree=0.85,
             random_state=42,
@@ -152,7 +174,7 @@ class XGBoostForecaster:
             "mape": round(mape, 2),
             "r2": round(r2, 3),
             "train_days": len(train_df),
-            "test_days": test_size,
+            "test_days": len(y_test),
             "forecast_horizon": horizon
         }
 
@@ -162,11 +184,11 @@ class XGBoostForecaster:
             "predicted": y_pred
         })
 
-        # 2. Refit on all available data
+        # 2. Train on FULL series
         full_reg = xgb.XGBRegressor(
-            n_estimators=180,
-            max_depth=4,
-            learning_rate=0.04,
+            n_estimators=100,
+            max_depth=3,
+            learning_rate=0.05,
             subsample=0.85,
             colsample_bytree=0.85,
             random_state=42,
@@ -175,81 +197,66 @@ class XGBoostForecaster:
         full_reg.fit(valid_feat_df[feature_cols], valid_feat_df["sales"])
         self.model = full_reg
 
-        # Extract feature importances
-        importances = dict(zip(feature_cols, [float(x) for x in full_reg.feature_importances_]))
-        self.feature_importances = dict(sorted(importances.items(), key=lambda item: item[1], reverse=True))
+        # Feature Importances
+        importances = full_reg.feature_importances_
+        self.feature_importances = dict(zip(feature_cols, [round(float(v), 4) for v in importances]))
 
-        # 3. Recursive multi-step future forecasting
+        # 3. Recursive Multi-Step Future Forecasting
+        if self.freq == "MS":
+            future_steps = max(1, horizon // 30)
+            date_freq = "MS"
+        elif self.freq == "W":
+            future_steps = max(1, horizon // 7)
+            date_freq = "W"
+        else:
+            future_steps = horizon
+            date_freq = "D"
+
         last_date = daily_df["date"].max()
-        extended_sales = list(daily_df["sales"].values)
-        extended_dates = list(daily_df["date"].values)
-        future_predictions = []
+        future_dates = pd.date_range(start=last_date, periods=future_steps + 1, freq=date_freq)[1:]
 
-        # Residual std for confidence intervals
-        residual_std = float(np.std(y_test.values - y_pred)) if len(y_test) > 1 else (mae * 1.25)
+        future_history = daily_df.copy()
+        future_preds = []
 
-        for step in range(1, horizon + 1):
-            next_date = last_date + pd.Timedelta(days=step)
-            # Create features for this future step
-            sales_series = pd.Series(extended_sales)
+        for step_date in future_dates:
+            temp_row = pd.DataFrame([{"date": step_date, "sales": np.nan}])
+            future_history = pd.concat([future_history, temp_row], ignore_index=True)
+            feat_history = self.create_features(future_history)
             
-            feat_row = {
-                "dayofweek": next_date.dayofweek,
-                "dayofmonth": next_date.day,
-                "month": next_date.month,
-                "quarter": next_date.quarter,
-                "dayofyear": next_date.dayofyear,
-                "is_weekend": 1 if next_date.dayofweek in [5, 6] else 0,
-                "weekofyear": int(next_date.isocalendar().week)
-            }
+            latest_features = feat_history.iloc[-1:][feature_cols].fillna(0.0)
+            pred_step = float(full_reg.predict(latest_features)[0])
+            pred_step = max(0.0, pred_step)
+            
+            future_history.loc[future_history.index[-1], "sales"] = pred_step
+            future_preds.append((step_date, pred_step))
 
-            # Lags
-            lags = [1, 2, 3, 7, 14, 21, 28]
-            for lag in lags:
-                feat_row[f"lag_{lag}"] = extended_sales[-lag] if len(extended_sales) >= lag else extended_sales[0]
+        # Residual volatility estimate for bounds
+        residuals = np.abs(y_test.values - y_pred)
+        margin = float(np.percentile(residuals, 75)) if len(residuals) > 0 else (daily_df["sales"].std() * 0.5)
+        margin = max(margin, 10.0)
 
-            # Rolling
-            feat_row["rolling_mean_7"] = float(sales_series.iloc[-7:].mean()) if len(sales_series) >= 7 else float(sales_series.mean())
-            feat_row["rolling_std_7"] = float(sales_series.iloc[-7:].std()) if len(sales_series) >= 7 else 0.0
-            feat_row["rolling_mean_14"] = float(sales_series.iloc[-14:].mean()) if len(sales_series) >= 14 else float(sales_series.mean())
-            feat_row["rolling_mean_30"] = float(sales_series.iloc[-30:].mean()) if len(sales_series) >= 30 else float(sales_series.mean())
-
-            # Convert to DataFrame
-            X_future = pd.DataFrame([feat_row])[feature_cols]
-            pred_val = float(np.clip(full_reg.predict(X_future)[0], 0, None))
-
-            # Bounds with increasing uncertainty horizon
-            uncertainty_growth = 1.0 + (step / horizon) * 0.5
-            lower_bound = max(0.0, pred_val - (1.645 * residual_std * uncertainty_growth))
-            upper_bound = pred_val + (1.645 * residual_std * uncertainty_growth)
-
-            future_predictions.append({
-                "date": next_date,
-                "predicted_sales": round(pred_val, 2),
-                "lower_bound": round(lower_bound, 2),
-                "upper_bound": round(upper_bound, 2),
-                "trend": round(pred_val, 2),
-                "is_historical": 0,
-                "actual_sales": np.nan
-            })
-
-            # Append to history for next recursive lag steps
-            extended_sales.append(pred_val)
-            extended_dates.append(next_date)
-
-        # Historical part for unified view
-        hist_records = []
-        for idx, row in daily_df.iterrows():
-            hist_records.append({
-                "date": row["date"],
+        # Build combined output dataframe
+        historical_records = []
+        for _, row in daily_df.iterrows():
+            historical_records.append({
+                "date": row["date"].strftime("%Y-%m-%d"),
+                "is_historical": 1,
+                "actual_sales": round(float(row["sales"]), 2),
                 "predicted_sales": round(float(row["sales"]), 2),
                 "lower_bound": round(float(row["sales"]), 2),
-                "upper_bound": round(float(row["sales"]), 2),
-                "trend": round(float(row["sales"]), 2),
-                "is_historical": 1,
-                "actual_sales": round(float(row["sales"]), 2)
+                "upper_bound": round(float(row["sales"]), 2)
             })
 
-        combined_forecast_df = pd.DataFrame(hist_records + future_predictions)
-        self.metrics = metrics
+        future_records = []
+        for f_date, f_pred in future_preds:
+            future_records.append({
+                "date": f_date.strftime("%Y-%m-%d"),
+                "is_historical": 0,
+                "actual_sales": None,
+                "predicted_sales": round(f_pred, 2),
+                "lower_bound": round(max(0.0, f_pred - margin), 2),
+                "upper_bound": round(f_pred + margin, 2)
+            })
+
+        combined_forecast_df = pd.DataFrame(historical_records + future_records)
         return combined_forecast_df, metrics, backtest_df

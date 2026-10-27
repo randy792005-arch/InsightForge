@@ -12,6 +12,8 @@ import pandas as pd
 from reportlab.lib.pagesizes import letter
 from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import (
     SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak, KeepTogether, HRFlowable
 )
@@ -64,12 +66,30 @@ class PDFReportGenerator:
         )
 
         styles = getSampleStyleSheet()
+
+        # Dynamic TTF font registration for crisp Indian Rupee (₹) rendering
+        font_regular = "Helvetica"
+        font_bold = "Helvetica-Bold"
+        for font_candidate in ["C:/Windows/Fonts/arial.ttf", "C:/Windows/Fonts/segoeui.ttf"]:
+            if os.path.exists(font_candidate):
+                try:
+                    pdfmetrics.registerFont(TTFont("InsightFont", font_candidate))
+                    bold_candidate = font_candidate.replace(".ttf", "bd.ttf")
+                    if os.path.exists(bold_candidate):
+                        pdfmetrics.registerFont(TTFont("InsightFont-Bold", bold_candidate))
+                        font_bold = "InsightFont-Bold"
+                    else:
+                        font_bold = "InsightFont"
+                    font_regular = "InsightFont"
+                    break
+                except Exception:
+                    pass
         
         # Custom Typography Styles
         title_style = ParagraphStyle(
             "DocTitle",
             parent=styles["Normal"],
-            fontName="Helvetica-Bold",
+            fontName=font_bold,
             fontSize=22,
             leading=26,
             textColor=colors.HexColor("#0F172A")
@@ -77,7 +97,7 @@ class PDFReportGenerator:
         subtitle_style = ParagraphStyle(
             "DocSubTitle",
             parent=styles["Normal"],
-            fontName="Helvetica",
+            fontName=font_regular,
             fontSize=12,
             leading=16,
             textColor=colors.HexColor("#475569")
@@ -85,7 +105,7 @@ class PDFReportGenerator:
         h1_style = ParagraphStyle(
             "SectionH1",
             parent=styles["Normal"],
-            fontName="Helvetica-Bold",
+            fontName=font_bold,
             fontSize=14,
             leading=18,
             textColor=colors.HexColor("#1E3A8A"),
@@ -95,7 +115,7 @@ class PDFReportGenerator:
         h2_style = ParagraphStyle(
             "SectionH2",
             parent=styles["Normal"],
-            fontName="Helvetica-Bold",
+            fontName=font_bold,
             fontSize=11,
             leading=15,
             textColor=colors.HexColor("#334155"),
@@ -105,7 +125,7 @@ class PDFReportGenerator:
         body_style = ParagraphStyle(
             "Body",
             parent=styles["Normal"],
-            fontName="Helvetica",
+            fontName=font_regular,
             fontSize=9,
             leading=13,
             textColor=colors.HexColor("#1E293B")
@@ -113,7 +133,7 @@ class PDFReportGenerator:
         table_cell_style = ParagraphStyle(
             "TableCell",
             parent=styles["Normal"],
-            fontName="Helvetica",
+            fontName=font_regular,
             fontSize=8,
             leading=11,
             textColor=colors.HexColor("#0F172A")
@@ -121,7 +141,7 @@ class PDFReportGenerator:
         table_header_style = ParagraphStyle(
             "TableHeader",
             parent=styles["Normal"],
-            fontName="Helvetica-Bold",
+            fontName=font_bold,
             fontSize=8,
             leading=11,
             textColor=colors.white
@@ -146,7 +166,7 @@ class PDFReportGenerator:
         kpi_data = [
             [
                 Paragraph("<b>Total Revenue</b>", table_cell_style),
-                Paragraph(f"${kpis.get('total_revenue', 0.0):,.2f}", table_cell_style),
+                Paragraph(f"₹{kpis.get('total_revenue', 0.0):,.2f}", table_cell_style),
                 Paragraph("<b>Total Units Sold</b>", table_cell_style),
                 Paragraph(f"{kpis.get('total_units_sold', 0):,.0f}", table_cell_style)
             ],
@@ -154,7 +174,7 @@ class PDFReportGenerator:
                 Paragraph("<b>Total Orders / Transactions</b>", table_cell_style),
                 Paragraph(f"{kpis.get('total_transactions', 0):,}", table_cell_style),
                 Paragraph("<b>Average Order Value (AOV)</b>", table_cell_style),
-                Paragraph(f"${kpis.get('avg_order_value', 0.0):,.2f}", table_cell_style)
+                Paragraph(f"₹{kpis.get('avg_order_value', 0.0):,.2f}", table_cell_style)
             ],
             [
                 Paragraph("<b>Active Products (SKUs)</b>", table_cell_style),
@@ -164,7 +184,7 @@ class PDFReportGenerator:
             ],
             [
                 Paragraph("<b>Average Daily Sales</b>", table_cell_style),
-                Paragraph(f"${kpis.get('avg_daily_revenue', 0.0):,.2f}/day", table_cell_style),
+                Paragraph(f"₹{kpis.get('avg_daily_revenue', 0.0):,.2f}/day", table_cell_style),
                 Paragraph("<b>Data Quality Score</b>", table_cell_style),
                 Paragraph(f"{quality_report.get('overall_score', 95.0) if quality_report else 95.0}% (Grade: {quality_report.get('grade', 'A') if quality_report else 'A'})", table_cell_style)
             ]
@@ -195,7 +215,7 @@ class PDFReportGenerator:
             for _, row in category_stats.head(6).iterrows():
                 cat_table_data.append([
                     Paragraph(str(row["category"]), table_cell_style),
-                    Paragraph(f"${float(row['total_sales']):,.2f}", table_cell_style),
+                    Paragraph(f"₹{float(row['total_sales']):,.2f}", table_cell_style),
                     Paragraph(f"{float(row['quantity_sold']):,.0f}", table_cell_style),
                     Paragraph(f"{float(row['revenue_share_pct']):.1f}%", table_cell_style),
                     Paragraph(str(row.get("product_count", "-")), table_cell_style)
@@ -232,21 +252,21 @@ class PDFReportGenerator:
             ],
             [
                 Paragraph("<b>Mean Absolute Error (MAE)</b>", table_cell_style),
-                Paragraph(f"${mae_val:,.2f}", table_cell_style),
+                Paragraph(f"₹{mae_val:,.2f}", table_cell_style),
                 Paragraph("<b>Root Mean Squared Error (RMSE)</b>", table_cell_style),
-                Paragraph(f"${rmse_val:,.2f}", table_cell_style)
+                Paragraph(f"₹{rmse_val:,.2f}", table_cell_style)
             ],
             [
                 Paragraph("<b>Mean Absolute Percentage Error (MAPE)</b>", table_cell_style),
                 Paragraph(f"{mape_val:.2f}%", table_cell_style),
-                Paragraph("<b>Coefficient of Determination (R?)</b>", table_cell_style),
+                Paragraph("<b>Coefficient of Determination (R²)</b>", table_cell_style),
                 Paragraph(f"{r2_val:.3f}", table_cell_style)
             ],
             [
                 Paragraph(f"<b>Projected {horizon}-Day Revenue</b>", table_cell_style),
-                Paragraph(f"${proj_rev:,.2f}", table_cell_style),
+                Paragraph(f"₹{proj_rev:,.2f}", table_cell_style),
                 Paragraph("<b>Projected Daily Run Rate</b>", table_cell_style),
-                Paragraph(f"${forecast_summary.get('projected_avg_daily', 0.0):,.2f}/day", table_cell_style)
+                Paragraph(f"₹{forecast_summary.get('projected_avg_daily', 0.0):,.2f}/day", table_cell_style)
             ]
         ]
 

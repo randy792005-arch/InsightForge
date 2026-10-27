@@ -154,16 +154,19 @@ class DatabaseManager:
 
             conn.commit()
 
-    def save_raw_data(self, df: pd.DataFrame, upload_id: str, filename: str = "uploaded_file") -> int:
+    def save_raw_data(self, df: pd.DataFrame, upload_id: str, filename: str = "uploaded_file", max_rows: int = 50000) -> int:
         """Save raw uploaded records as JSON rows for audit and replay."""
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("DELETE FROM raw_retail_data WHERE upload_id = ?", (upload_id,))
             
-            rows = []
-            for idx, row in df.iterrows():
-                row_json = row.to_json()
-                rows.append((upload_id, filename, int(idx), row_json))
+            # Fast vectorized conversion avoiding row.to_json() index collision
+            df_slice = df.head(max_rows)
+            records = df_slice.to_dict(orient="records")
+            rows = [
+                (upload_id, filename, int(idx), json.dumps(rec, default=str))
+                for idx, rec in enumerate(records)
+            ]
             
             cursor.executemany("""
             INSERT INTO raw_retail_data (upload_id, filename, row_index, raw_json)

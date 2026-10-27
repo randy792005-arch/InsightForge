@@ -75,7 +75,7 @@ class AnalyticsAgent(BaseAgent):
             "start_date": min_date.strftime("%Y-%m-%d"),
             "end_date": max_date.strftime("%Y-%m-%d")
         }
-        self.log(f"Computed core KPIs: Revenue=${total_revenue:,.2f}, Units={total_units_sold:,.0f}, AOV=${avg_order_value:,.2f}")
+        self.log(f"Computed core KPIs: Revenue=₹{total_revenue:,.2f}, Units={total_units_sold:,.0f}, AOV=₹{avg_order_value:,.2f}")
 
         # 2. Time-Series Aggregations
         # Daily
@@ -188,7 +188,7 @@ class AnalyticsAgent(BaseAgent):
 
         status_msg = (
             f"Analyzed {total_transactions:,} orders across {unique_products} products and {unique_categories} categories. "
-            f"Total Revenue: ${total_revenue:,.2f} over {total_days} days."
+            f"Total Revenue: ₹{total_revenue:,.2f} over {total_days} days."
         )
 
         return {

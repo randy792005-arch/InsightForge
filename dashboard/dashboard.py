@@ -1,8 +1,8 @@
 """
 InsightForge Interactive Streamlit UI Dashboard
-Provides an academic-grade, enterprise SaaS web interface demonstrating the 5-agent AI workflow,
+Provides an enterprise SaaS web interface demonstrating the 5-agent AI workflow,
 interactive exploratory analytics, machine learning demand forecasting, inventory decision support,
-and executive PDF report generation.
+and executive PDF report generation on any uploaded retail dataset.
 """
 
 import os
@@ -70,28 +70,47 @@ def init_session_state():
     if "recommendation_data" not in st.session_state:
         st.session_state.recommendation_data = None
     if "dataset_filename" not in st.session_state:
-        st.session_state.dataset_filename = "sample_retail_sales.csv"
+        st.session_state.dataset_filename = None
     if "pdf_report_path" not in st.session_state:
         st.session_state.pdf_report_path = None
 
 
 def run_full_pipeline(file_source, filename: str, model_type: str = "Prophet", forecast_horizon: int = 30):
-    """Coordinates the execution of all 5 specialized agents sequentially."""
+    """Coordinates the execution of all 5 specialized agents sequentially on the target dataset."""
     db = st.session_state.db
-    session_id = st.session_state.session_id
+    # Generate fresh session ID for this execution run
+    session_id = f"session_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    st.session_state.session_id = session_id
+    st.session_state.pdf_report_path = None
+
+    # Reset seek pointer if file stream
+    if hasattr(file_source, "seek"):
+        try:
+            file_source.seek(0)
+        except Exception:
+            pass
 
     progress_bar = st.progress(0)
     status_text = st.empty()
 
+    # Reset statuses
+    st.session_state.agent_status = {
+        "ingestion": {"status": "PENDING", "msg": "Validating schema & parsing raw records"},
+        "cleaning": {"status": "PENDING", "msg": "Waiting for ingestion"},
+        "analytics": {"status": "PENDING", "msg": "Waiting for cleaning"},
+        "forecasting": {"status": "PENDING", "msg": "Waiting for analytics"},
+        "recommendation": {"status": "PENDING", "msg": "Waiting for forecasting"}
+    }
+
     # Step 1: Ingestion Agent
-    status_text.markdown("**[Agent 1/5] Data Ingestion Agent** validating schema and storing raw data...")
+    status_text.markdown(f"**[Agent 1/5] Data Ingestion Agent** validating schema and parsing `{filename}`...")
     ingestion_agent = DataIngestionAgent(db_manager=db)
     ingestion_res = ingestion_agent.run(file_source=file_source, filename=filename, session_id=session_id)
     progress_bar.progress(20)
 
     if not ingestion_res.is_success:
         st.session_state.agent_status["ingestion"] = {"status": "ERROR", "msg": ingestion_res.message}
-        st.error(f"Data Ingestion Agent Failed: {ingestion_res.message}")
+        status_text.error(f"Data Ingestion Agent Failed: {ingestion_res.message}")
         return False
 
     st.session_state.agent_status["ingestion"] = {"status": "SUCCESS", "msg": ingestion_res.message}
@@ -100,7 +119,7 @@ def run_full_pipeline(file_source, filename: str, model_type: str = "Prophet", f
     st.session_state.dataset_filename = filename
 
     # Step 2: Cleaning Agent
-    status_text.markdown("**[Agent 2/5] Data Cleaning Agent** deduplicating, standardizing and scoring quality...")
+    status_text.markdown("**[Agent 2/5] Data Cleaning Agent** deduplicating, standardizing and scoring data quality...")
     cleaning_agent = DataCleaningAgent(db_manager=db)
     cleaning_res = cleaning_agent.run(
         df_raw=st.session_state.df_raw,
@@ -111,7 +130,7 @@ def run_full_pipeline(file_source, filename: str, model_type: str = "Prophet", f
 
     if not cleaning_res.is_success:
         st.session_state.agent_status["cleaning"] = {"status": "ERROR", "msg": cleaning_res.message}
-        st.error(f"Data Cleaning Agent Failed: {cleaning_res.message}")
+        status_text.error(f"Data Cleaning Agent Failed: {cleaning_res.message}")
         return False
 
     st.session_state.agent_status["cleaning"] = {"status": "SUCCESS", "msg": cleaning_res.message}
@@ -119,21 +138,21 @@ def run_full_pipeline(file_source, filename: str, model_type: str = "Prophet", f
     st.session_state.quality_report = cleaning_res.data["quality_report"]
 
     # Step 3: Analytics Agent
-    status_text.markdown("**[Agent 3/5] Analytics Agent** computing business KPIs, sales trends and category shares...")
+    status_text.markdown("**[Agent 3/5] Analytics Agent** computing business KPIs, sales trends and category distributions...")
     analytics_agent = AnalyticsAgent(db_manager=db)
     analytics_res = analytics_agent.run(df_clean=st.session_state.df_clean, session_id=session_id)
     progress_bar.progress(60)
 
     if not analytics_res.is_success:
         st.session_state.agent_status["analytics"] = {"status": "ERROR", "msg": analytics_res.message}
-        st.error(f"Analytics Agent Failed: {analytics_res.message}")
+        status_text.error(f"Analytics Agent Failed: {analytics_res.message}")
         return False
 
     st.session_state.agent_status["analytics"] = {"status": "SUCCESS", "msg": analytics_res.message}
     st.session_state.analytics_data = analytics_res.data
 
     # Step 4: Forecasting Agent
-    status_text.markdown(f"**[Agent 4/5] Forecasting Agent** training {model_type} and computing backtest metrics...")
+    status_text.markdown(f"**[Agent 4/5] Forecasting Agent** training {model_type} demand forecast model...")
     forecasting_agent = ForecastingAgent(db_manager=db)
     forecasting_res = forecasting_agent.run(
         df_clean=st.session_state.df_clean,
@@ -145,14 +164,14 @@ def run_full_pipeline(file_source, filename: str, model_type: str = "Prophet", f
 
     if not forecasting_res.is_success:
         st.session_state.agent_status["forecasting"] = {"status": "ERROR", "msg": forecasting_res.message}
-        st.error(f"Forecasting Agent Failed: {forecasting_res.message}")
+        status_text.error(f"Forecasting Agent Failed: {forecasting_res.message}")
         return False
 
     st.session_state.agent_status["forecasting"] = {"status": "SUCCESS", "msg": forecasting_res.message}
     st.session_state.forecasting_data = forecasting_res.data
 
     # Step 5: Recommendation Agent
-    status_text.markdown("**[Agent 5/5] Recommendation Agent** evaluating stock velocity and formulating decision support...")
+    status_text.markdown("**[Agent 5/5] Recommendation Agent** evaluating inventory velocity & formulating prescriptive actions...")
     rec_agent = RecommendationAgent(db_manager=db)
     rec_res = rec_agent.run(
         analytics_data=st.session_state.analytics_data,
@@ -163,13 +182,13 @@ def run_full_pipeline(file_source, filename: str, model_type: str = "Prophet", f
 
     if not rec_res.is_success:
         st.session_state.agent_status["recommendation"] = {"status": "ERROR", "msg": rec_res.message}
-        st.error(f"Recommendation Agent Failed: {rec_res.message}")
+        status_text.error(f"Recommendation Agent Failed: {rec_res.message}")
         return False
 
     st.session_state.agent_status["recommendation"] = {"status": "SUCCESS", "msg": rec_res.message}
     st.session_state.recommendation_data = rec_res.data
 
-    status_text.success("Multi-Agent AI Pipeline Completed Successfully! All 5 agents executed.")
+    status_text.success(f"Multi-Agent AI Pipeline Completed Successfully for '{filename}'! All 5 agents executed.")
     time.sleep(0.3)
     return True
 
@@ -182,23 +201,48 @@ def page_executive_dashboard():
         badge_text="InsightForge Enterprise"
     )
 
+    analytics_data = st.session_state.analytics_data
+    if analytics_data is None:
+        st.info("Welcome to InsightForge. To begin, upload your own retail dataset or load the benchmark dataset.")
+        
+        c_up1, c_up2 = st.columns(2)
+        with c_up1:
+            st.markdown("### Upload Your Dataset")
+            st.caption("Supports CSV, XLSX with standard retail columns (Date, Sales/Qty, Products).")
+            exec_file = st.file_uploader("Choose file (.csv, .xlsx, .xls)", type=["csv", "xlsx", "xls"], key="exec_upload")
+            if exec_file is not None:
+                if st.button(f"Process '{exec_file.name}'", type="primary", key="btn_exec_proc"):
+                    with st.spinner("Executing 5-Agent AI Pipeline on your file..."):
+                        run_full_pipeline(exec_file, filename=exec_file.name)
+                        st.rerun()
+
+        with c_up2:
+            st.markdown("### Or Load Benchmark Retail Dataset")
+            st.caption("17,486 multi-category enterprise retail sales transactions (2024-2025).")
+            st.markdown("<br>", unsafe_allow_html=True)
+            if st.button("Load 17,400+ Sample Retail Dataset", type="secondary", key="btn_exec_sample"):
+                sample_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "datasets", "sample_retail_sales.csv")
+                if os.path.exists(sample_path):
+                    with st.spinner("Executing 5-Agent AI Pipeline on sample dataset..."):
+                        run_full_pipeline(sample_path, filename="sample_retail_sales.csv")
+                        st.rerun()
+                else:
+                    st.error("Sample dataset file not found.")
+        return
+
     # 1. 5-Agent Status Stepper
     render_agent_stepper_ui(st.session_state.agent_status)
 
-    analytics_data = st.session_state.analytics_data
-    if analytics_data is None:
-        st.info("Welcome to InsightForge. No dataset has been processed yet. Click below to load the benchmark retail dataset.")
-        if st.button("Load Benchmark Retail Dataset (17,400+ Records) and Execute AI Pipeline", type="primary"):
-            sample_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "datasets", "sample_retail_sales.csv")
-            if os.path.exists(sample_path):
-                with st.spinner("Executing 5-Agent AI Pipeline..."):
-                    run_full_pipeline(sample_path, filename="sample_retail_sales.csv")
-                    st.rerun()
-            else:
-                st.error("Sample dataset file not found.")
-        return
-
+    # Active Dataset Status Bar
     kpis = analytics_data["kpis"]
+    fname = st.session_state.get("dataset_filename", "Custom Dataset")
+    st.markdown(
+        f"""<div style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; padding: 10px 16px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; font-size: 13px; color: #475569;">
+        <div><b>Active Dataset:</b> <code style="color: #2563EB;">{fname}</code> | <b>{kpis.get('total_transactions', 0):,}</b> Transactions | <b>{kpis.get('unique_products', 0)}</b> Products | <b>{kpis.get('unique_categories', 0)}</b> Categories | Scope: <b>{kpis.get('start_date', '')}</b> to <b>{kpis.get('end_date', '')}</b></div>
+        <div><span style="color: #059669; font-weight: 600;">All 5 Agents Active</span></div>
+        </div>""",
+        unsafe_allow_html=True
+    )
 
     # 2. Top-Level Enterprise KPI Cards
     render_kpi_cards_grid(kpis)
@@ -248,8 +292,8 @@ def page_data_ingestion():
         )
 
     with col2:
-        st.markdown("**Quick Test with Sample Dataset:**")
-        if st.button("Load 17,400+ Sample Retail Dataset", type="secondary"):
+        st.markdown("**Quick Benchmark Test:**")
+        if st.button("Load 17,400+ Sample Retail Dataset", type="secondary", key="btn_ingest_sample"):
             sample_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "datasets", "sample_retail_sales.csv")
             if os.path.exists(sample_path):
                 with st.spinner("Ingesting sample dataset..."):
@@ -260,16 +304,18 @@ def page_data_ingestion():
     # If file uploaded
     if uploaded_file is not None:
         st.write(f"**Selected File:** `{uploaded_file.name}` ({round(uploaded_file.size / 1024, 1)} KB)")
-        if st.button("Process Uploaded Dataset", type="primary"):
-            with st.spinner("Running Multi-Agent Pipeline..."):
-                run_full_pipeline(uploaded_file, filename=uploaded_file.name)
-                st.rerun()
+        if st.button(f"Execute 5-Agent Pipeline on '{uploaded_file.name}'", type="primary", key="btn_ingest_proc"):
+            with st.spinner(f"Running Multi-Agent Pipeline on '{uploaded_file.name}'..."):
+                success = run_full_pipeline(uploaded_file, filename=uploaded_file.name)
+                if success:
+                    st.success(f"Pipeline finished! Click 'Executive Dashboard' in navigation to view full analysis.")
+                    st.rerun()
 
     st.markdown("---")
 
     # Ingestion Diagnostics Preview
     if st.session_state.df_raw is not None:
-        st.subheader("Raw Ingestion Diagnostics")
+        st.subheader(f"Raw Ingestion Diagnostics: {st.session_state.get('dataset_filename', '')}")
         df_raw = st.session_state.df_raw
         
         c1, c2, c3, c4 = st.columns(4)
@@ -298,42 +344,40 @@ def page_data_cleaning():
     )
 
     if st.session_state.df_clean is None:
-        st.info("No cleaned dataset available. Please ingest a dataset first.")
+        st.info("Please ingest a dataset first to review data cleaning results.")
         return
 
-    quality_report = st.session_state.quality_report
-    df_clean = st.session_state.df_clean
+    quality = st.session_state.quality_report
 
-    # Quality Score Header Cards
-    if quality_report:
-        col_q1, col_q2, col_q3, col_q4, col_q5 = st.columns(5)
-        score = quality_report["overall_score"]
-        grade = quality_report["grade"]
-        col_q1.metric("Data Quality Score", f"{score}%", delta=f"Grade: {grade}")
-        col_q2.metric("Completeness", f"{quality_report['completeness_score']}/30 pts")
-        col_q3.metric("Uniqueness", f"{quality_report['uniqueness_score']}/25 pts")
-        col_q4.metric("Validity", f"{quality_report['validity_score']}/25 pts")
-        col_q5.metric("Date Consistency", f"{quality_report['date_score']}/20 pts")
+    # Health Score Metric Cards
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Data Quality Score", f"{quality['overall_score']}%", delta=f"Grade {quality['grade']}")
+    c2.metric("Clean Records Retained", f"{quality['clean_rows']:,}", delta=f"{quality['raw_rows'] - quality['clean_rows']:,} dropped")
+    c3.metric("Duplicates Removed", f"{quality['duplicates_removed']:,}")
+    c4.metric("Imputed Data Cells", f"{quality['missing_cells_imputed']:,}")
 
     st.markdown("---")
 
-    # Cleaning Audit Table
-    st.subheader("Data Cleansing Audit Summary")
-    audit_cols = st.columns(4)
-    audit_cols[0].metric("Valid Clean Records", f"{len(df_clean):,}")
-    audit_cols[1].metric("Duplicates Eliminated", f"{quality_report.get('duplicates_removed', 0):,}")
-    audit_cols[2].metric("Imputed Data Points", f"{quality_report.get('missing_cells_imputed', 0):,}")
-    audit_cols[3].metric("Date Range", f"{df_clean['date'].min().strftime('%Y-%m-%d')} to {df_clean['date'].max().strftime('%Y-%m-%d')}")
+    # Quality Pillars Grid
+    st.subheader("Data Health Pillars Assessment")
+    q_col1, q_col2, q_col3, q_col4 = st.columns(4)
+    q_col1.progress(quality["completeness_score"] / 30.0, text=f"Completeness: {quality['completeness_score']}/30")
+    q_col2.progress(quality["uniqueness_score"] / 25.0, text=f"Uniqueness: {quality['uniqueness_score']}/25")
+    q_col3.progress(quality["validity_score"] / 25.0, text=f"Validity: {quality['validity_score']}/25")
+    q_col4.progress(quality["date_score"] / 20.0, text=f"Continuity: {quality['date_score']}/20")
 
-    st.markdown("##### Cleaned & Standardized Dataset Browser:")
-    st.dataframe(df_clean.head(50), use_container_width=True)
+    st.markdown("---")
+
+    # Cleaned Dataset Sample
+    st.subheader("Normalized Cleaned Dataset Preview")
+    st.dataframe(st.session_state.df_clean.head(25), use_container_width=True)
 
 
 # ---------------- PAGE 4: SALES ANALYTICS ---------------- #
 def page_sales_analytics():
     render_dashboard_header(
         title="Analytics Agent (Agent 3)",
-        subtitle="Exploratory retail sales analytics, category shares, product rankings, and Pareto distributions",
+        subtitle="Exploratory data analysis, multi-dimensional sales breakdown, category revenue shares, and Pareto distribution",
         badge_text="Agent 3: Analytics"
     )
 
@@ -364,10 +408,10 @@ def page_sales_analytics():
         with col_c2:
             st.markdown("##### Category Performance Breakdown:")
             cat_table = analytics_data["category_stats"].copy()
-            cat_table["total_sales"] = cat_table["total_sales"].apply(lambda v: f"${v:,.2f}")
+            cat_table["total_sales"] = cat_table["total_sales"].apply(lambda v: f"₹{v:,.2f}")
             cat_table["quantity_sold"] = cat_table["quantity_sold"].apply(lambda v: f"{v:,.0f}")
             cat_table["revenue_share_pct"] = cat_table["revenue_share_pct"].apply(lambda v: f"{v:.1f}%")
-            cat_table["avg_order_value"] = cat_table["avg_order_value"].apply(lambda v: f"${v:,.2f}")
+            cat_table["avg_order_value"] = cat_table["avg_order_value"].apply(lambda v: f"₹{v:,.2f}")
             st.dataframe(cat_table, use_container_width=True)
 
     with tab3:
@@ -377,7 +421,7 @@ def page_sales_analytics():
         with col_p2:
             st.markdown("##### Bottom 10 Slow-Moving Products:")
             bot_df = analytics_data["bottom_10_products"].copy()
-            bot_df["total_sales"] = bot_df["total_sales"].apply(lambda v: f"${v:,.2f}")
+            bot_df["total_sales"] = bot_df["total_sales"].apply(lambda v: f"₹{v:,.2f}")
             bot_df["quantity_sold"] = bot_df["quantity_sold"].apply(lambda v: f"{v:,.0f}")
             st.dataframe(bot_df[["product_name", "category", "total_sales", "quantity_sold", "current_stock"]], use_container_width=True)
 
@@ -452,8 +496,8 @@ def page_demand_forecasting():
     st.markdown("#### Authentic Model Evaluation Metrics (Hold-out Backtesting)")
     m_col1, m_col2, m_col3, m_col4, m_col5 = st.columns(5)
     m_col1.metric("Model Used", fc_data["model_name"])
-    m_col2.metric("Mean Absolute Error (MAE)", f"${metrics['mae']:,.2f}")
-    m_col3.metric("Root Mean Squared Error (RMSE)", f"${metrics['rmse']:,.2f}")
+    m_col2.metric("Mean Absolute Error (MAE)", f"₹{metrics['mae']:,.2f}")
+    m_col3.metric("Root Mean Squared Error (RMSE)", f"₹{metrics['rmse']:,.2f}")
     m_col4.metric("Mean Absolute Percentage Error (MAPE)", f"{metrics['mape']:.2f}%")
     m_col5.metric("R2 Score", f"{metrics['r2']:.3f}")
 
@@ -474,11 +518,15 @@ def page_demand_forecasting():
         proj_rev = fc_data.get("projected_total_revenue", 0.0)
         proj_daily = fc_data.get("projected_avg_daily", 0.0)
 
-        st.metric("Total Projected Sales", f"${proj_rev:,.2f}", delta=f"~${proj_daily:,.2f}/day")
+        st.metric("Total Projected Sales", f"₹{proj_rev:,.2f}", delta=f"~₹{proj_daily:,.2f}/day")
 
         future_table = fc_data["forecast_df"][fc_data["forecast_df"]["is_historical"] == 0].copy()
         future_table["date"] = pd.to_datetime(future_table["date"]).dt.strftime("%Y-%m-%d")
-        st.dataframe(future_table[["date", "predicted_sales", "lower_bound", "upper_bound"]].head(15), use_container_width=True)
+        disp_future = future_table.copy()
+        disp_future["predicted_sales"] = disp_future["predicted_sales"].apply(lambda v: f"₹{v:,.2f}")
+        disp_future["lower_bound"] = disp_future["lower_bound"].apply(lambda v: f"₹{v:,.2f}")
+        disp_future["upper_bound"] = disp_future["upper_bound"].apply(lambda v: f"₹{v:,.2f}")
+        st.dataframe(disp_future[["date", "predicted_sales", "lower_bound", "upper_bound"]].head(15), use_container_width=True)
 
 
 # ---------------- PAGE 6: INVENTORY & RECOMMENDATIONS ---------------- #
@@ -581,8 +629,8 @@ def page_pdf_report():
     st.subheader("Report Content Preview")
     st.markdown(f"""
     - **Dataset Scope:** `{st.session_state.dataset_filename}` ({analytics_data['kpis'].get('total_transactions', 0):,} Transactions)
-    - **Total Revenue Analyzed:** `${analytics_data['kpis'].get('total_revenue', 0):,.2f}`
-    - **Forecasting Model:** `{forecasting_data.get('model_name', 'Prophet')}` (MAE: `${forecasting_data['metrics'].get('mae', 0):,.2f}`, MAPE: `{forecasting_data['metrics'].get('mape', 0):.2f}%`)
+    - **Total Revenue Analyzed:** `₹{analytics_data['kpis'].get('total_revenue', 0):,.2f}`
+    - **Forecasting Model:** `{forecasting_data.get('model_name', 'Prophet')}` (MAE: `₹{forecasting_data['metrics'].get('mae', 0):,.2f}`, MAPE: `{forecasting_data['metrics'].get('mape', 0):.2f}%`)
     - **Inventory Action Items:** `{recommendation_data.get('total_recommendations', 0)}` Prioritized Recommendations
     """)
 
@@ -615,6 +663,28 @@ def main_dashboard_app():
             "Executive PDF Report"
         ]
     )
+
+    # Sidebar Dataset Status & Quick Uploader
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("##### Active Retail Dataset")
+    if st.session_state.df_clean is not None:
+        fname = st.session_state.get("dataset_filename", "Custom Dataset")
+        n_rows = len(st.session_state.df_clean)
+        st.sidebar.caption(f"**{fname}** ({n_rows:,} clean records)")
+    else:
+        st.sidebar.caption("No dataset loaded yet.")
+
+    sidebar_file = st.sidebar.file_uploader(
+        "Quick Upload Dataset",
+        type=["csv", "xlsx", "xls"],
+        key="sidebar_quick_upload",
+        help="Upload CSV or Excel to execute multi-agent analysis"
+    )
+    if sidebar_file is not None:
+        if st.sidebar.button(f"Process '{sidebar_file.name}'", type="primary", key="btn_side_proc"):
+            with st.spinner(f"Running pipeline on '{sidebar_file.name}'..."):
+                run_full_pipeline(sidebar_file, filename=sidebar_file.name)
+                st.rerun()
 
     st.sidebar.markdown("---")
     st.sidebar.markdown("##### Agentic AI Pipeline Status")

@@ -72,9 +72,9 @@ def create_revenue_trend_chart(df_daily: pd.DataFrame) -> go.Figure:
     fig.add_trace(go.Bar(
         x=df_daily["date"],
         y=df_daily["total_sales"],
-        name="Daily Revenue ($)",
+        name="Daily Revenue (₹)",
         marker_color="rgba(37, 99, 235, 0.28)",
-        hovertemplate="<b>%{x|%b %d, %Y}</b><br>Daily Sales: $%{y:,.2f}<extra></extra>"
+        hovertemplate="<b>%{x|%b %d, %Y}</b><br>Daily Sales: ₹%{y:,.2f}<extra></extra>"
     ))
 
     # 7-day moving average curve
@@ -85,10 +85,10 @@ def create_revenue_trend_chart(df_daily: pd.DataFrame) -> go.Figure:
             name="7-Day Moving Avg",
             mode="lines",
             line=dict(color="#1D4ED8", width=2.8),
-            hovertemplate="<b>7D Avg:</b> $%{y:,.2f}<extra></extra>"
+            hovertemplate="<b>7D Avg:</b> ₹%{y:,.2f}<extra></extra>"
         ))
 
-    apply_enterprise_layout(fig, title="Daily Revenue Trend & 7-Day Moving Average", yaxis_title="Revenue ($)", height=370)
+    apply_enterprise_layout(fig, title="Daily Revenue Trend & 7-Day Moving Average", yaxis_title="Revenue (₹)", height=370)
     fig.update_layout(
         hovermode="x unified",
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
@@ -109,12 +109,12 @@ def create_monthly_sales_chart(df_monthly: pd.DataFrame) -> go.Figure:
             colorscale=[[0, "#93C5FD"], [1, "#1E40AF"]],
             showscale=False
         ),
-        text=df_monthly["total_sales"].apply(lambda v: f"${v:,.0f}"),
+        text=df_monthly["total_sales"].apply(lambda v: f"₹{v:,.0f}"),
         textposition="outside",
-        hovertemplate="<b>%{x}</b><br>Revenue: $%{y:,.2f}<extra></extra>"
+        hovertemplate="<b>%{x}</b><br>Revenue: ₹%{y:,.2f}<extra></extra>"
     ))
 
-    apply_enterprise_layout(fig, title="Monthly Revenue Performance", yaxis_title="Revenue ($)", height=340)
+    apply_enterprise_layout(fig, title="Monthly Revenue Performance", yaxis_title="Revenue (₹)", height=340)
     return fig
 
 
@@ -131,9 +131,9 @@ def create_dow_sales_chart(dow_df: pd.DataFrame) -> go.Figure:
     fig.update_traces(
         texttemplate="%{text:.1f}%",
         textposition="outside",
-        hovertemplate="<b>%{x}</b><br>Sales: $%{y:,.2f}<br>Share: %{text:.1f}%<extra></extra>"
+        hovertemplate="<b>%{x}</b><br>Sales: ₹%{y:,.2f}<br>Share: %{text:.1f}%<extra></extra>"
     )
-    apply_enterprise_layout(fig, title="Sales Distribution by Day of Week", yaxis_title="Revenue ($)", height=340)
+    apply_enterprise_layout(fig, title="Sales Distribution by Day of Week", yaxis_title="Revenue (₹)", height=340)
     fig.update_layout(coloraxis_showscale=False)
     return fig
 
@@ -150,7 +150,7 @@ def create_category_pie_chart(df_category: pd.DataFrame) -> go.Figure:
     fig.update_traces(
         textposition="inside",
         textinfo="percent+label",
-        hovertemplate="<b>%{label}</b><br>Revenue: $%{value:,.2f}<br>Share: %{percent}<extra></extra>"
+        hovertemplate="<b>%{label}</b><br>Revenue: ₹%{value:,.2f}<br>Share: %{percent}<extra></extra>"
     )
     apply_enterprise_layout(fig, title="Revenue Share by Product Category", height=370)
     fig.update_layout(
@@ -173,13 +173,13 @@ def create_top_products_bar(df_products: pd.DataFrame, top_n: int = 10) -> go.Fi
             colorscale=[[0, "#99F6E4"], [1, "#0D9488"]],
             showscale=False
         ),
-        text=top_df["total_sales"].apply(lambda v: f"${v:,.0f}"),
+        text=top_df["total_sales"].apply(lambda v: f"₹{v:,.0f}"),
         textposition="outside",
-        hovertemplate="<b>%{y}</b><br>Sales: $%{x:,.2f}<br>Units: %{customdata[0]:,}<extra></extra>",
+        hovertemplate="<b>%{y}</b><br>Sales: ₹%{x:,.2f}<br>Units: %{customdata[0]:,}<extra></extra>",
         customdata=top_df[["quantity_sold"]]
     ))
 
-    apply_enterprise_layout(fig, title=f"Top {top_n} Best-Selling Products by Revenue", xaxis_title="Revenue ($)", height=370)
+    apply_enterprise_layout(fig, title=f"Top {top_n} Best-Selling Products by Revenue", xaxis_title="Revenue (₹)", height=370)
     fig.update_layout(margin=dict(l=150, r=40, t=55, b=35))
     return fig
 
@@ -194,10 +194,10 @@ def create_pareto_chart(df_pareto: pd.DataFrame) -> go.Figure:
     fig.add_trace(go.Bar(
         x=top_pareto["product_name"],
         y=top_pareto["total_sales"],
-        name="Product Sales ($)",
+        name="Product Sales (₹)",
         marker_color="#3B82F6",
         yaxis="y1",
-        hovertemplate="<b>%{x}</b><br>Sales: $%{y:,.2f}<extra></extra>"
+        hovertemplate="<b>%{x}</b><br>Sales: ₹%{y:,.2f}<extra></extra>"
     ))
 
     # Cumulative % line
@@ -218,7 +218,7 @@ def create_pareto_chart(df_pareto: pd.DataFrame) -> go.Figure:
     apply_enterprise_layout(fig, title="Pareto (80/20) Product Revenue Distribution", height=400)
     fig.update_layout(
         xaxis=dict(tickangle=-45, showgrid=False),
-        yaxis=dict(title="Product Sales ($)", side="left"),
+        yaxis=dict(title="Product Sales (₹)", side="left"),
         yaxis2=dict(title="Cumulative Share (%)", side="right", overlaying="y", range=[0, 105], showgrid=False),
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
         margin=dict(l=40, r=40, t=60, b=90)
@@ -241,7 +241,7 @@ def create_forecast_chart(forecast_df: pd.DataFrame, model_name: str = "Prophet"
             name="Historical Sales",
             mode="lines",
             line=dict(color="#2563EB", width=2),
-            hovertemplate="<b>Historical:</b> %{x|%b %d, %Y}<br>Sales: $%{y:,.2f}<extra></extra>"
+            hovertemplate="<b>Historical:</b> %{x|%b %d, %Y}<br>Sales: ₹%{y:,.2f}<extra></extra>"
         ))
 
     # 2. Confidence Interval Ribbon
@@ -265,10 +265,10 @@ def create_forecast_chart(forecast_df: pd.DataFrame, model_name: str = "Prophet"
             mode="lines+markers",
             line=dict(color="#D97706", width=2.8),
             marker=dict(size=4),
-            hovertemplate="<b>Forecast:</b> %{x|%b %d, %Y}<br>Predicted: $%{y:,.2f}<extra></extra>"
+            hovertemplate="<b>Forecast:</b> %{x|%b %d, %Y}<br>Predicted: ₹%{y:,.2f}<extra></extra>"
         ))
 
-    apply_enterprise_layout(fig, title=f"Demand Forecast ({model_name}) with 90% Confidence Band", yaxis_title="Sales ($)", height=400)
+    apply_enterprise_layout(fig, title=f"Demand Forecast ({model_name}) with 90% Confidence Band", yaxis_title="Sales (₹)", height=400)
     fig.update_layout(
         hovermode="x unified",
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
@@ -287,7 +287,7 @@ def create_model_evaluation_chart(backtest_df: pd.DataFrame, model_name: str = "
         mode="lines+markers",
         line=dict(color="#0F172A", width=2),
         marker=dict(size=5),
-        hovertemplate="<b>Date:</b> %{x|%b %d}<br>Actual: $%{y:,.2f}<extra></extra>"
+        hovertemplate="<b>Date:</b> %{x|%b %d}<br>Actual: ₹%{y:,.2f}<extra></extra>"
     ))
 
     fig.add_trace(go.Scatter(
@@ -297,10 +297,10 @@ def create_model_evaluation_chart(backtest_df: pd.DataFrame, model_name: str = "
         mode="lines+markers",
         line=dict(color="#059669", width=2, dash="dash"),
         marker=dict(size=5),
-        hovertemplate="<b>Predicted:</b> $%{y:,.2f}<extra></extra>"
+        hovertemplate="<b>Predicted:</b> ₹%{y:,.2f}<extra></extra>"
     ))
 
-    apply_enterprise_layout(fig, title=f"Hold-Out Backtesting Validation ({model_name})", yaxis_title="Sales ($)", height=340)
+    apply_enterprise_layout(fig, title=f"Hold-Out Backtesting Validation ({model_name})", yaxis_title="Sales (₹)", height=340)
     fig.update_layout(
         hovermode="x unified",
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
@@ -318,15 +318,19 @@ def create_inventory_matrix_chart(df_inventory: pd.DataFrame) -> go.Figure:
         "Out of Stock": "#991B1B"
     }
 
+    df_plot = df_inventory.copy()
+    df_plot["sales_formatted"] = df_plot["total_sales"].apply(lambda v: f"₹{v:,.2f}")
+
     fig = px.scatter(
-        df_inventory,
+        df_plot,
         x="daily_velocity",
         y="current_stock",
         size="quantity_sold",
         color="stock_status",
         color_discrete_map=status_colors,
         hover_name="product_name",
-        hover_data={"category": True, "days_of_inventory": True, "total_sales": ":$,.2f"}
+        hover_data={"category": True, "days_of_inventory": True, "sales_formatted": True},
+        labels={"sales_formatted": "Total Sales (₹)"}
     )
 
     apply_enterprise_layout(fig, title="Inventory Health Matrix: Current Stock vs. Sales Velocity", xaxis_title="Daily Sales Velocity (Units/Day)", yaxis_title="Current Stock (Units)", height=400)

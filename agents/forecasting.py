@@ -79,7 +79,7 @@ class ForecastingAgent(BaseAgent):
             forecast_df, metrics, backtest_df = forecaster.train_and_forecast(df_clean, forecast_horizon=forecast_horizon)
             model_display_name = "Prophet"
 
-        self.log(f"Model evaluation complete: MAE=${metrics['mae']:.2f}, RMSE=${metrics['rmse']:.2f}, MAPE={metrics['mape']:.2f}%, R2={metrics['r2']:.3f}")
+        self.log(f"Model evaluation complete: MAE=₹{metrics['mae']:.2f}, RMSE=₹{metrics['rmse']:.2f}, MAPE={metrics['mape']:.2f}%, R2={metrics['r2']:.3f}")
 
         # Future projected sales summary
         future_only = forecast_df[forecast_df["is_historical"] == 0]
@@ -98,7 +98,7 @@ class ForecastingAgent(BaseAgent):
 
         status_msg = (
             f"Forecast completed using {model_display_name}. Projected {forecast_horizon}-day sales: "
-            f"${projected_total_revenue:,.2f} (MAE: ${metrics['mae']:.2f}, MAPE: {metrics['mape']:.2f}%)."
+            f"₹{projected_total_revenue:,.2f} (MAE: ₹{metrics['mae']:.2f}, MAPE: {metrics['mape']:.2f}%)."
         )
 
         return {

@@ -7,6 +7,14 @@ SQLite database persistence, Prophet/XGBoost models, and PDF report generation.
 import os
 import sys
 
+# Ensure UTF-8 console output for Indian Rupee symbol
+if sys.platform == "win32":
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
 # Add InsightForge root to path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -52,20 +60,20 @@ def run_test_suite():
     analytics_res = analytics_agent.run(df_clean=clean_res.data["df_clean"], session_id="test_session")
     assert analytics_res.is_success, f"Analytics failed: {analytics_res.message}"
     kpis = analytics_res.data["kpis"]
-    print(f"[?] Step 4: Analytics Agent -> Total Revenue: ${kpis['total_revenue']:,.2f} | Units: {kpis['total_units_sold']:,.0f} | SKUs: {kpis['unique_products']}")
+    print(f"[?] Step 4: Analytics Agent -> Total Revenue: ₹{kpis['total_revenue']:,.2f} | Units: {kpis['total_units_sold']:,.0f} | SKUs: {kpis['unique_products']}")
 
     # 5. Forecasting Agent (Prophet)
     fc_agent = ForecastingAgent(db_manager=db)
     fc_prophet_res = fc_agent.run(df_clean=clean_res.data["df_clean"], model_type="Prophet", forecast_horizon=30, session_id="test_session")
     assert fc_prophet_res.is_success, f"Prophet forecasting failed: {fc_prophet_res.message}"
     pm = fc_prophet_res.data["metrics"]
-    print(f"[?] Step 5: Forecasting Agent (Prophet) -> MAE=${pm['mae']:.2f}, RMSE=${pm['rmse']:.2f}, MAPE={pm['mape']:.2f}%, R2={pm['r2']:.3f}")
+    print(f"[?] Step 5: Forecasting Agent (Prophet) -> MAE=₹{pm['mae']:.2f}, RMSE=₹{pm['rmse']:.2f}, MAPE={pm['mape']:.2f}%, R2={pm['r2']:.3f}")
 
     # 6. Forecasting Agent (XGBoost)
     fc_xgb_res = fc_agent.run(df_clean=clean_res.data["df_clean"], model_type="XGBoost", forecast_horizon=30, session_id="test_session")
     assert fc_xgb_res.is_success, f"XGBoost forecasting failed: {fc_xgb_res.message}"
     xm = fc_xgb_res.data["metrics"]
-    print(f"[?] Step 6: Forecasting Agent (XGBoost) -> MAE=${xm['mae']:.2f}, RMSE=${xm['rmse']:.2f}, MAPE={xm['mape']:.2f}%, R2={xm['r2']:.3f}")
+    print(f"[?] Step 6: Forecasting Agent (XGBoost) -> MAE=₹{xm['mae']:.2f}, RMSE=₹{xm['rmse']:.2f}, MAPE={xm['mape']:.2f}%, R2={xm['r2']:.3f}")
 
     # 7. Recommendation Agent
     rec_agent = RecommendationAgent(db_manager=db)

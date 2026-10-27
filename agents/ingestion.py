@@ -53,11 +53,17 @@ class DataIngestionAgent(BaseAgent):
             else:
                 raise ValueError("Unsupported file format. Please upload CSV or Excel (.xlsx/.xls) file.")
         elif isinstance(file_source, io.BytesIO) or hasattr(file_source, "read"):
+            if hasattr(file_source, "seek"):
+                try:
+                    file_source.seek(0)
+                except Exception:
+                    pass
             if filename.endswith(".csv"):
                 try:
                     df_raw = pd.read_csv(file_source, encoding="utf-8")
                 except UnicodeDecodeError:
-                    file_source.seek(0)
+                    if hasattr(file_source, "seek"):
+                        file_source.seek(0)
                     df_raw = pd.read_csv(file_source, encoding="latin-1")
             elif filename.endswith((".xlsx", ".xls")):
                 df_raw = pd.read_excel(file_source)
@@ -66,6 +72,21 @@ class DataIngestionAgent(BaseAgent):
                 df_raw = pd.read_csv(file_source)
         else:
             raise ValueError(f"Invalid file source type: {type(file_source)}")
+
+        # Clean and deduplicate column names (strip whitespace and BOM)
+        seen_cols = {}
+        unique_cols = []
+        for c in df_raw.columns:
+            clean_name = str(c).strip().lstrip("\ufeff")
+            if not clean_name:
+                clean_name = "Column"
+            if clean_name in seen_cols:
+                seen_cols[clean_name] += 1
+                unique_cols.append(f"{clean_name}_{seen_cols[clean_name]}")
+            else:
+                seen_cols[clean_name] = 0
+                unique_cols.append(clean_name)
+        df_raw.columns = unique_cols
 
         self.log(f"File parsed successfully: {df_raw.shape[0]} rows, {df_raw.shape[1]} columns detected.")
 
